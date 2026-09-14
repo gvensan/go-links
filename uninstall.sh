@@ -8,7 +8,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PURGE=0; YES=0
 for a in "$@"; do case "$a" in --purge) PURGE=1 ;; --yes|-y) YES=1 ;; *) echo "unknown option: $a"; exit 1 ;; esac; done
 
-LINKS_HOME="${LINKS_HOME:-$ROOT}"
+GOLINKS_HOME="${GOLINKS_HOME:-$ROOT}"
 DOMAIN="gui/$(id -u)"
 
 echo "Uninstalling Golinks from $ROOT"
@@ -21,7 +21,9 @@ else
     launchctl bootout "$DOMAIN/$l" 2>/dev/null || true
     rm -f "$HOME/Library/LaunchAgents/$l.plist"
   done
-  [ -L "$HOME/.golinks" ] && rm -f "$HOME/.golinks"
+  # Plain if: the link is normally there, and an `&& rm` reads as though a
+  # missing one were an error worth stopping for. It is not.
+  if [ -L "$HOME/.golinks" ]; then rm -f "$HOME/.golinks"; fi
 fi
 rm -f "$ROOT/bin/node"
 
@@ -33,19 +35,19 @@ pkill -f "$ROOT/menubar/menubar.js" 2>/dev/null || true   # pre-1.2 menu bar ico
 if [ "$PURGE" = 1 ]; then
   echo
   echo "This will permanently delete:"
-  echo "  $LINKS_HOME/data       (links, settings, rules, templates, backups)"
-  echo "  $LINKS_HOME/snapshots  (thumbnails)"
+  echo "  $GOLINKS_HOME/data       (links, settings, rules, templates, backups)"
+  echo "  $GOLINKS_HOME/snapshots  (thumbnails)"
   echo "  $ROOT/logs"
   if [ "$YES" != 1 ]; then
     read -r -p "Type DELETE to confirm: " answer
     [ "$answer" = "DELETE" ] || { echo "kept your data"; PURGE=0; }
   fi
   if [ "$PURGE" = 1 ]; then
-    rm -rf "$LINKS_HOME/data" "$LINKS_HOME/snapshots" "$ROOT/logs"
+    rm -rf "$GOLINKS_HOME/data" "$GOLINKS_HOME/snapshots" "$ROOT/logs"
     echo "data deleted"
   fi
 else
-  echo "Your data is untouched in $LINKS_HOME/data and $LINKS_HOME/snapshots (use --purge to delete it)."
+  echo "Your data is untouched in $GOLINKS_HOME/data and $GOLINKS_HOME/snapshots (use --purge to delete it)."
 fi
 
 cat <<MSG

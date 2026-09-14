@@ -330,7 +330,7 @@ snapshots/             YOUR thumbnails (git ignored)
 
 Personal data is git-ignored so the code repo can be shared. To sync your own
 links between machines, make `data/` and `snapshots/` a private repo of their
-own, or set `LINKS_HOME=/path` before `golinks install` to keep them elsewhere
+own, or set `GOLINKS_HOME=/path` before `golinks install` to keep them elsewhere
 (for example in a synced folder). Settings > Export in Golinks JSON format is
 the simplest backup.
 

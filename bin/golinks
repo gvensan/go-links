@@ -11,7 +11,7 @@ DOMAIN="gui/$(id -u)"
 NODE_LINK="$ROOT/bin/node"
 STABLE_LINK="$HOME/.golinks"
 OLD_STABLE_LINK=""
-LINKS_HOME="${LINKS_HOME:-$ROOT}"
+GOLINKS_HOME="${GOLINKS_HOME:-$ROOT}"
 MIN_NODE=18
 REPO="${GOLINKS_REPO:-gvensan/go-links}"
 BRANCH="${GOLINKS_BRANCH:-master}"
@@ -22,8 +22,8 @@ green() { printf '\033[32m%s\033[0m\n' "$*"; }
 dim() { printf '\033[2m%s\033[0m\n' "$*"; }
 
 port() {
-  if [ -f "$LINKS_HOME/data/settings.json" ]; then
-    sed -n 's/.*"port"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$LINKS_HOME/data/settings.json" | head -1
+  if [ -f "$GOLINKS_HOME/data/settings.json" ]; then
+    sed -n 's/.*"port"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$GOLINKS_HOME/data/settings.json" | head -1
   fi
 }
 PORT="${LINKS_PORT:-$(port)}"
@@ -77,7 +77,7 @@ link_stable() {
 render() {
   # render <template> <out>
   mkdir -p "$AGENTS" "$ROOT/logs"
-  sed -e "s|__ROOT__|$ROOT|g" -e "s|__LABEL__|$LABEL|g" -e "s|__HOME__|$HOME|g" -e "s|__PORT__|$PORT|g" -e "s|__LINKS_HOME__|$LINKS_HOME|g" "$1" > "$2"
+  sed -e "s|__ROOT__|$ROOT|g" -e "s|__LABEL__|$LABEL|g" -e "s|__HOME__|$HOME|g" -e "s|__PORT__|$PORT|g" -e "s|__GOLINKS_HOME__|$GOLINKS_HOME|g" "$1" > "$2"
   plutil -lint "$2" >/dev/null
 }
 
@@ -115,6 +115,7 @@ do_install() {
   migrate_old
   link_node
   link_stable
+  warn_if_replacing_other_install
   render "$ROOT/launchd/$LABEL.plist.tmpl" "$PLIST"
   bootout_quiet "$LABEL"
   launchctl bootstrap "$DOMAIN" "$PLIST"
@@ -129,7 +130,7 @@ do_uninstall() {
   bootout_quiet "$LABEL"
   rm -f "$PLIST"
   [ -L "$STABLE_LINK" ] && rm -f "$STABLE_LINK"
-  green "uninstalled. Your links, snapshots and settings are untouched in $LINKS_HOME"
+  green "uninstalled. Your links, snapshots and settings are untouched in $GOLINKS_HOME"
 }
 
 do_start() {
@@ -150,6 +151,78 @@ do_restart() {
   do_status
 }
 
+# ---- install-path drift ----------------------------------------------------
+
+# The launchd plist stores absolute paths, so moving, copying or renaming this
+# folder after an install leaves the agent pointing at the old one. Nothing
+# else notices: a process that is already running keeps going on the old files
+# even after they are deleted, so launchctl still reports a healthy pid while
+# the code being served no longer exists. These checks compare what is
+# installed, and what is running, against this copy.
+
+# First entry of ProgramArguments: the node binary the agent was installed to run.
+installed_program() {
+  [ -f "$PLIST" ] || return 1
+  sed -n '/<key>ProgramArguments<\/key>/,/<\/array>/p' "$PLIST" \
+    | sed -n 's/.*<string>\(.*\)<\/string>.*/\1/p' | head -1
+}
+
+running_command() {
+  local pid
+  pid="$(launchctl print "$DOMAIN/$LABEL" 2>/dev/null | sed -n 's/^[[:space:]]*pid = \([0-9]*\).*/\1/p' | head -1)"
+  [ -n "$pid" ] || return 1
+  ps -o command= -p "$pid" 2>/dev/null | head -1
+}
+
+# install is a single, unconditional bootout+bootstrap of the label dev.golinks,
+# so installing a second checkout silently steals the login agent from a first
+# one that is still there. Warn about it; do not block, since the piped
+# curl | bash installer has no terminal to confirm with.
+warn_if_replacing_other_install() {
+  local prev folder
+  prev="$(installed_program || true)"
+  [ -n "$prev" ] || return 0
+  case "$prev" in "$ROOT"/*) return 0 ;; esac
+  [ -e "$prev" ] || return 0
+  folder="$(dirname "$(dirname "$prev")")"
+  red "replacing the login agent, currently serving from $folder"
+  dim "that copy stops running; this copy ($ROOT) takes over dev.golinks"
+}
+
+# Prints nothing when everything agrees. Returns 1 when a reinstall is needed,
+# so callers can use it as a condition.
+check_install_path() {
+  local prog folder running ok=0
+  prog="$(installed_program || true)"
+  [ -n "$prog" ] || return 0    # not installed: install is the whole answer
+  case "$prog" in
+    "$ROOT"/*) ;;
+    *)
+      folder="$(dirname "$(dirname "$prog")")"
+      red "installed from a different folder: the agent runs code in $folder"
+      dim "this copy is $ROOT - run: bin/golinks install"
+      ok=1
+      ;;
+  esac
+  if [ ! -e "$prog" ]; then
+    red "the agent cannot start: $prog no longer exists"
+    dim "run: bin/golinks install"
+    ok=1
+  fi
+  running="$(running_command || true)"
+  if [ -n "$running" ]; then
+    case "$running" in
+      "$ROOT"/*) ;;
+      *)
+        red "the running service is code from another folder: ${running%% *}"
+        dim "run: bin/golinks install"
+        ok=1
+        ;;
+    esac
+  fi
+  return "$ok"
+}
+
 do_status() {
   if loaded "$LABEL"; then
     local info pid exitcode
@@ -160,6 +233,7 @@ do_status() {
   else
     echo "service:  not loaded"
   fi
+  check_install_path || true
   echo "url:      $BASE"
   if health="$(curl -fsS --max-time 2 "$BASE/api/health" 2>/dev/null)"; then
     echo "health:   $health"
@@ -167,7 +241,7 @@ do_status() {
   else
     echo "health:   no response"
   fi
-  echo "data:     $LINKS_HOME/data"
+  echo "data:     $GOLINKS_HOME/data"
 }
 
 do_logs() {
@@ -181,6 +255,7 @@ do_doctor() {
   local n; n="$(readlink "$NODE_LINK" 2>/dev/null || true)"
   if [ -n "$n" ] && [ -x "$n" ]; then green "ok   node: $n ($("$n" --version))"; else red "FAIL node: bin/node missing, run golinks install"; fi
   if [ -f "$PLIST" ]; then green "ok   agent plist: $PLIST"; else red "FAIL agent not installed, run golinks install"; fi
+  if check_install_path; then green "ok   the agent runs this copy: $ROOT"; fi
   if loaded "$LABEL"; then green "ok   agent loaded"; else red "FAIL agent not loaded, run golinks start"; fi
   if [ -L "$STABLE_LINK" ]; then green "ok   stable link: $STABLE_LINK -> $(readlink "$STABLE_LINK")"; else dim "     stable link ~/.golinks missing, run golinks install"; fi
   if ! curl -fsS --max-time 3 "$BASE/api/health" >/dev/null 2>&1; then
@@ -249,7 +324,7 @@ case "${1:-}" in
   update) do_update ;;
   update-from) copy_code "${2:?source folder}" ;;
   open) open "$BASE/" ;;
-  run) LINKS_HOME="$LINKS_HOME" exec "$(find_node)" "$ROOT/server.js" ;;
+  run) GOLINKS_HOME="$GOLINKS_HOME" exec "$(find_node)" "$ROOT/server.js" ;;
   node) link_node ;;
   search) shift; exec "$NODE_LINK" "$ROOT/shortcuts/scripts/search.js" "$@" ;;
   add-tab) shift; exec "$NODE_LINK" "$ROOT/shortcuts/scripts/add-current-tab.js" "$@" ;;
