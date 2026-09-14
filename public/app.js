@@ -1592,7 +1592,8 @@
       '<div class="actions"><button class="btn danger" id="sWipe">Delete all ' + health.links + ' link' + (health.links === 1 ? '' : 's') + '</button><span id="sWipeMsg" class="small muted"></span></div></div>' +
 
       '<div class="card-box"><h2 style="margin-top:0">Service</h2>' +
-      '<div class="shortcuts-help"><span class="muted">Version</span><span>' + esc(health.version) + '</span><span class="muted">PID</span><span>' + health.pid + '</span><span class="muted">Uptime</span><span>' + Math.floor(health.uptimeSec / 60) + ' min</span><span class="muted">Links</span><span>' + health.links + '</span><span class="muted">Pending snapshots</span><span>' + health.pendingSnapshots + '</span></div>' +
+      '<div class="shortcuts-help"><span class="muted">Version</span><span>' + esc(health.version) + '</span><span class="muted">PID</span><span>' + health.pid + '</span><span class="muted">Uptime</span><span>' + Math.floor(health.uptimeSec / 60) + ' min</span><span class="muted">Links</span><span>' + health.links + '</span><span class="muted">Pending snapshots</span><span>' + health.pendingSnapshots + '</span>' +
+      '<span class="muted">Install folder</span><span style="word-break:break-all">' + esc(health.home) + '</span><span class="muted">Node</span><span style="word-break:break-all">' + esc(health.execPath) + '</span></div>' +
       (m.restartNeeded ? '<div class="alert warn">The code on disk is newer than the running service. Click Restart to pick it up.</div>' : '') +
       '<div class="actions"><button class="btn primary" id="sRestart">Restart service</button><span id="sRestartMsg" class="small muted"></span><span class="grow" style="flex:1"></span><button class="btn danger" id="sQuit">Stop service</button><span class="small muted">Stays stopped until you log in again or run <code>~/.golinks/bin/golinks start</code>.</span></div></div>');
 
