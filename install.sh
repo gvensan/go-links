@@ -5,7 +5,10 @@
 #   Without downloading anything first (installs to ~/go-links):
 #     curl -fsSL https://raw.githubusercontent.com/gvensan/go-links/master/install.sh | bash
 #
-# Set GOLINKS_DIR to install somewhere other than ~/go-links.
+# To install somewhere other than ~/go-links, set GOLINKS_DIR right before
+# whichever command actually runs the script: `GOLINKS_DIR=/path bash install.sh`,
+# or `curl ... | GOLINKS_DIR=/path bash` (not before curl - a pipe only hands a
+# leading assignment to the command it is in front of).
 set -euo pipefail
 if [ "$(uname)" != "Darwin" ]; then echo "Golinks runs on macOS only."; exit 1; fi
 

@@ -79,8 +79,14 @@ curl -fsSL https://raw.githubusercontent.com/gvensan/go-links/master/install.sh 
 
 That downloads Golinks to a `go-links` folder in your home folder, registers the
 service to start at login, and opens the setup checklist in your browser at
-http://localhost:7777/#/settings/setup. Set `GOLINKS_DIR=/some/path` before
-the command to install somewhere else.
+http://localhost:7777/#/settings/setup. To install somewhere else, put
+`GOLINKS_DIR=/some/path` right before `bash`, not before `curl` (the command is
+a pipe, and a variable set in front only reaches the one command it is in
+front of):
+
+```
+curl -fsSL https://raw.githubusercontent.com/gvensan/go-links/master/install.sh | GOLINKS_DIR=/some/path bash
+```
 
 **Prefer to download by hand?** On the
 [GitHub page](https://github.com/gvensan/go-links) click the green **Code**
